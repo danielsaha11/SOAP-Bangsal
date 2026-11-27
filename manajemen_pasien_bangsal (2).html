@@ -1,0 +1,1646 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manajemen Pasien Bangsal (Ward Patient Tracker)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .soap-tag {
+            min-width: 26px;
+            height: 26px;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- Container Notifikasi Toast -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Header / Navbar Utama -->
+    <header class="bg-slate-900 text-white shadow-lg sticky top-0 z-30 border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3.5">
+                <!-- Identitas Aplikasi & Jam Real-Time -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between lg:justify-start gap-3 sm:gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-sky-500 p-2.5 rounded-xl text-white shadow-sm shrink-0">
+                            <i data-lucide="stethoscope" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white">Manajemen Pasien Bangsal</h1>
+                                <span id="sync-status-badge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                                    <span id="sync-status-dot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+                                    <span id="sync-status-text">Mode Lokal</span>
+                                </span>
+                            </div>
+                            <!-- Jam Digital & Tanggal Live Update -->
+                            <div class="flex items-center gap-1.5 text-sky-300 text-xs font-mono font-medium mt-1">
+                                <i data-lucide="clock" class="w-3.5 h-3.5 text-sky-400 shrink-0"></i>
+                                <span id="live-clock-display">Memuat waktu...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tombol Aksi Utama -->
+                <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" onclick="openSyncModal()" class="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 text-xs sm:text-sm font-semibold rounded-xl transition-all cursor-pointer">
+                        <i data-lucide="cloud-cog" class="w-4 h-4 text-sky-400"></i>
+                        <span id="header-room-label">Sinkronisasi Cloud</span>
+                    </button>
+                    <button type="button" onclick="copyHandoverReport()" class="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition-all cursor-pointer">
+                        <i data-lucide="clipboard-copy" class="w-4 h-4"></i>
+                        <span>Salin Laporan Operan</span>
+                    </button>
+                    <button type="button" onclick="openPatientModal()" class="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-400 active:bg-sky-600 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition-all cursor-pointer">
+                        <i data-lucide="user-plus" class="w-4 h-4"></i>
+                        <span>Tambah Pasien</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Konten Utama -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- Bilah Informasi Sinkronisasi -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-3.5 mb-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 text-xs">
+            <div class="flex items-center gap-2.5 text-slate-700">
+                <span class="p-1.5 rounded-lg bg-sky-50 text-sky-600 shrink-0">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                </span>
+                <div>
+                    <span>Kode Ruang Aktif: <strong id="active-room-display" class="font-mono text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">BANGSAL-UTAMA</strong></span>
+                    <span class="block sm:inline text-slate-500 sm:ml-2">Data tersimpan otomatis di perangkat dan siap disinkronkan antar perangkat melalui Firebase.</span>
+                </div>
+            </div>
+            <button type="button" onclick="openSyncModal()" class="text-sky-700 hover:text-sky-800 font-semibold hover:underline self-start sm:self-center shrink-0 cursor-pointer">
+                Konfigurasi Cloud
+            </button>
+        </div>
+
+        <!-- Ringkasan Statistik Bangsal -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Pasien Aktif</p>
+                    <p id="stat-total" class="text-2xl font-extrabold text-slate-800 mt-0.5">0</p>
+                </div>
+                <div class="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
+                    <i data-lucide="users" class="w-5 h-5"></i>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-2xl border border-red-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] font-semibold text-red-600 uppercase tracking-wider">Observasi Ketat</p>
+                    <p id="stat-obs" class="text-2xl font-extrabold text-red-700 mt-0.5">0</p>
+                </div>
+                <div class="p-2.5 bg-red-50 text-red-600 rounded-xl">
+                    <i data-lucide="activity" class="w-5 h-5"></i>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-2xl border border-emerald-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Stabil</p>
+                    <p id="stat-stabil" class="text-2xl font-extrabold text-emerald-700 mt-0.5">0</p>
+                </div>
+                <div class="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                    <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-2xl border border-sky-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p class="text-[11px] font-semibold text-sky-600 uppercase tracking-wider">Rencana Pulang</p>
+                    <p id="stat-pulang" class="text-2xl font-extrabold text-sky-700 mt-0.5">0</p>
+                </div>
+                <div class="p-2.5 bg-sky-50 text-sky-600 rounded-xl">
+                    <i data-lucide="home" class="w-5 h-5"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel Pencarian & Filter -->
+        <section class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 space-y-3">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
+                <!-- Pencarian Cepat -->
+                <div class="lg:col-span-5 relative">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                    </div>
+                    <input type="text" id="search-input" placeholder="Cari No. RM, inisial, ruangan, diagnosis, atau DPJP..."
+                        class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all">
+                </div>
+
+                <!-- Filter Jalur Masuk -->
+                <div class="lg:col-span-3 flex items-center gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200" id="route-filter-group">
+                    <button type="button" data-route="ALL" class="route-btn flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-slate-800 text-white shadow-xs">
+                        Semua Jalur
+                    </button>
+                    <button type="button" data-route="IGD" class="route-btn flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer text-slate-600 hover:text-slate-900">
+                        IGD
+                    </button>
+                    <button type="button" data-route="Poliklinik" class="route-btn flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer text-slate-600 hover:text-slate-900">
+                        Poliklinik
+                    </button>
+                </div>
+
+                <!-- Filter Status Klinis -->
+                <div class="lg:col-span-4 flex flex-wrap gap-1.5" id="status-filter-group">
+                    <button type="button" data-status="ALL" class="status-btn flex-1 py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer bg-slate-800 text-white border-slate-800">
+                        Semua
+                    </button>
+                    <button type="button" data-status="Observasi Ketat" class="status-btn flex-1 py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer bg-white text-slate-600 border-slate-200 hover:bg-red-50 hover:text-red-700">
+                        Obs. Ketat
+                    </button>
+                    <button type="button" data-status="Stabil" class="status-btn flex-1 py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer bg-white text-slate-600 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700">
+                        Stabil
+                    </button>
+                    <button type="button" data-status="Rencana Pulang" class="status-btn flex-1 py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer bg-white text-slate-600 border-slate-200 hover:bg-sky-50 hover:text-sky-700">
+                        Rencana Pulang
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Daftar Kartu Pasien -->
+        <div id="patient-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-5"></div>
+
+        <!-- Tampilan Kosong -->
+        <div id="empty-state" class="hidden bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center my-4">
+            <div class="w-14 h-14 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="clipboard-list" class="w-7 h-7"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800">Tidak ada data pasien ditemukan</h3>
+            <p class="text-sm text-slate-500 max-w-md mx-auto mt-1">Sesuaikan kata kunci pencarian, ubah filter status, atau tambahkan pasien baru ke daftar perawatan bangsal.</p>
+            <button type="button" onclick="openPatientModal()" class="mt-4 inline-flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-xl transition-all cursor-pointer">
+                <i data-lucide="plus" class="w-4 h-4"></i> Tambah Pasien Baru
+            </button>
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-10 pt-5 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+            <p>Aplikasi Manajemen Pasien Bangsal. Mendukung penyimpanan lokal otomatis dan sinkronisasi Firebase Firestore.</p>
+            <button type="button" onclick="openConfirmModal('reset')" class="inline-flex items-center gap-1.5 text-slate-600 hover:text-red-600 font-medium px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                <span>Muat Ulang Data Simulasi</span>
+            </button>
+        </footer>
+    </main>
+
+    <!-- MODAL 1: Tambah / Edit Data Pasien & SOAP -->
+    <div id="patient-modal" class="fixed inset-0 z-40 hidden overflow-y-auto" role="dialog" aria-modal="true">
+        <div class="flex items-end sm:items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div onclick="closePatientModal()" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div class="relative inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl w-full border border-slate-200">
+                <form id="patient-form" onsubmit="handleSavePatient(event)">
+                    <!-- Header Modal -->
+                    <div class="bg-slate-900 px-5 py-4 flex items-center justify-between">
+                        <div class="flex items-center gap-2.5 text-white">
+                            <i data-lucide="file-text" class="w-5 h-5 text-sky-400"></i>
+                            <h3 id="modal-title" class="text-base sm:text-lg font-bold">Tambah Pasien Baru</h3>
+                        </div>
+                        <button type="button" onclick="closePatientModal()" class="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
+                    <!-- Isi Modal -->
+                    <div class="px-5 py-5 max-h-[78vh] overflow-y-auto space-y-5">
+                        <input type="hidden" id="form-id">
+
+                        <!-- Bagian 1: Identitas Pasien -->
+                        <div>
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">1. Identitas Lengkap dan Lokasi Pasien</h4>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Bangsal / Ruangan *</label>
+                                    <input type="text" id="form-ward" required placeholder="Contoh: Bangsal Penyakit Dalam" list="ward-suggestions"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                    <datalist id="ward-suggestions">
+                                        <option value="Bangsal Penyakit Dalam">
+                                        <option value="Bangsal Anak">
+                                        <option value="Bangsal Bedah">
+                                        <option value="Bangsal Kebidanan">
+                                        <option value="Ruang VIP">
+                                        <option value="Ruang HCU">
+                                    </datalist>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Nomor Bed *</label>
+                                    <input type="text" id="form-bed" required placeholder="Contoh: Bed 04"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Nomor Rekam Medis (No. RM) *</label>
+                                    <input type="text" id="form-rm" required placeholder="Contoh: 12-34-56"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono font-semibold focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-3">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Inisial Nama Pasien *</label>
+                                    <input type="text" id="form-initials" required placeholder="Contoh: Tn. A.S." maxlength="30"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Usia (Tahun) *</label>
+                                    <input type="number" id="form-age" min="0" max="125" step="any" required oninput="togglePediatricImmunizationField()" placeholder="Contoh: 54"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Jenis Kelamin *</label>
+                                    <select id="form-gender" required
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                        <option value="Laki-laki">Laki-laki</option>
+                                        <option value="Perempuan">Perempuan</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Agama *</label>
+                                    <select id="form-religion" required
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                        <option value="Islam">Islam</option>
+                                        <option value="Kristen Protestan">Kristen Protestan</option>
+                                        <option value="Katolik">Katolik</option>
+                                        <option value="Hindu">Hindu</option>
+                                        <option value="Buddha">Buddha</option>
+                                        <option value="Khonghucu">Khonghucu</option>
+                                        <option value="Lainnya">Lainnya</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Jenis Pembayaran / Penjaminan *</label>
+                                    <input type="text" id="form-insurance" required list="insurance-suggestions" placeholder="Contoh: BPJS Kesehatan / Umum / Asuransi Swasta"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                    <datalist id="insurance-suggestions">
+                                        <option value="BPJS Kesehatan PBI">
+                                        <option value="BPJS Kesehatan Non-PBI">
+                                        <option value="Umum / Mandiri">
+                                        <option value="Asuransi Swasta">
+                                        <option value="Jasa Raharja">
+                                    </datalist>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">DPJP Utama *</label>
+                                    <input type="text" id="form-dpjp" required placeholder="Contoh: dr. Hendra Wijaya, Sp.PD"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="border-slate-200">
+
+                        <!-- Bagian 2: Data Admisi & Lama Rawat -->
+                        <div>
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">2. Data Admisi dan Lama Perawatan</h4>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Tanggal dan Jam Masuk RS *</label>
+                                    <input type="datetime-local" id="form-admission-datetime" required oninput="updateModalLosPreview()"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Jalur Masuk RS *</label>
+                                    <select id="form-admission-route" required
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                        <option value="IGD">IGD</option>
+                                        <option value="Poliklinik">Poliklinik</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Status Klinis *</label>
+                                    <select id="form-status" required
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                        <option value="Observasi Ketat">Observasi Ketat</option>
+                                        <option value="Stabil" selected>Stabil</option>
+                                        <option value="Rencana Pulang">Rencana Pulang</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="mt-3 bg-sky-50 border border-sky-200 rounded-xl px-4 py-2.5 flex items-center justify-between">
+                                <span class="text-xs font-semibold text-sky-900">Perhitungan Otomatis Lama Hari Perawatan di Bangsal:</span>
+                                <span id="modal-los-preview" class="text-xs font-extrabold text-sky-700 bg-white px-3 py-1 rounded-lg border border-sky-200">Hari ke-1</span>
+                            </div>
+                        </div>
+
+                        <hr class="border-slate-200">
+
+                        <!-- Bagian 3: Catatan Klinis SOAP -->
+                        <div>
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">3. Catatan Perkembangan SOAP</h4>
+                            <div class="space-y-3.5">
+                                <!-- Subjective -->
+                                <div>
+                                    <label class="flex items-center gap-2 text-xs font-bold text-slate-700 mb-1">
+                                        <span class="w-5 h-5 rounded bg-sky-100 text-sky-800 inline-flex items-center justify-center">S</span>
+                                        Subjective (Keluhan Utama dan Anamnesis) *
+                                    </label>
+                                    <textarea id="form-s" rows="2" required placeholder="Tuliskan keluhan utama dan riwayat perjalanan penyakit saat ini..."
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none"></textarea>
+                                </div>
+
+                                <!-- Kolom Riwayat Imunisasi Khusus Pasien Usia <= 17 Tahun -->
+                                <div id="pediatric-immunization-box" class="hidden bg-sky-50/90 border border-sky-200 rounded-xl p-3.5">
+                                    <label class="flex items-center justify-between text-xs font-bold text-sky-900 mb-1.5">
+                                        <span class="flex items-center gap-1.5">
+                                            <i data-lucide="syringe" class="w-4 h-4 text-sky-600"></i>
+                                            Riwayat Imunisasi (Pasien Anak Usia 17 Tahun ke Bawah)
+                                        </span>
+                                        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-sky-200/80 text-sky-900">Pediatri</span>
+                                    </label>
+                                    <input type="text" id="form-immunization" placeholder="Contoh: Imunisasi dasar lengkap sesuai jadwal usia (HB0, BCG, DPT-HB-Hib, Polio, Campak Rubella)..."
+                                        class="w-full px-3 py-2 bg-white border border-sky-300 rounded-xl text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                                </div>
+
+                                <!-- Objective -->
+                                <div>
+                                    <label class="flex items-center gap-2 text-xs font-bold text-slate-700 mb-1">
+                                        <span class="w-5 h-5 rounded bg-indigo-100 text-indigo-800 inline-flex items-center justify-center">O</span>
+                                        Objective (Tanda Vital, Pemeriksaan Fisik, dan Penunjang) *
+                                    </label>
+                                    <textarea id="form-o" rows="2" required placeholder="Contoh: Kesadaran CM, TD 120/80 mmHg, Nadi 84 x/menit, RR 20 x/menit, SpO2 98%, Suhu 36.8 C. Pemeriksaan fisik dan hasil laboratorium..."
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none"></textarea>
+                                </div>
+
+                                <!-- Assessment (Diagnosis Naratif Bebas) -->
+                                <div>
+                                    <label class="flex items-center gap-2 text-xs font-bold text-slate-700 mb-1">
+                                        <span class="w-5 h-5 rounded bg-amber-100 text-amber-800 inline-flex items-center justify-center">A</span>
+                                        Assessment (Diagnosis Kerja / Diagnosis Banding) *
+                                    </label>
+                                    <textarea id="form-a" rows="2" required placeholder="Tuliskan diagnosis klinis secara naratif, contoh: Pneumonia Komunitas Sedang dengan Diabetes Melitus Tipe 2 Terkontrol..."
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"></textarea>
+                                </div>
+
+                                <!-- Plan -->
+                                <div>
+                                    <label class="flex items-center gap-2 text-xs font-bold text-slate-700 mb-1">
+                                        <span class="w-5 h-5 rounded bg-emerald-100 text-emerald-800 inline-flex items-center justify-center">P</span>
+                                        Plan (Terapi Aktif dan Rencana Tatalaksana) *
+                                    </label>
+                                    <textarea id="form-p" rows="2" required placeholder="Tuliskan terapi cairan, obat injeksi/oral, nutrisi, dan rencana pemantauan..."
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="border-slate-200">
+
+                        <!-- Bagian 4: Advice & Follow-up DPJP pada Form Modal -->
+                        <div>
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">4. Daftar Advice dan Follow-up DPJP</h4>
+                            <div id="modal-followup-list" class="space-y-1.5 mb-2.5"></div>
+                            <div class="flex items-center gap-2">
+                                <input type="text" id="modal-new-followup-input" placeholder="Ketik instruksi atau advice DPJP baru..."
+                                    onkeydown="if(event.key==='Enter'){event.preventDefault();addModalFollowUpItem();}"
+                                    class="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+                                <button type="button" onclick="addModalFollowUpItem()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer shrink-0">
+                                    Tambah Advice
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer Modal -->
+                    <div class="bg-slate-50 px-5 py-3.5 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                        <button type="button" onclick="closePatientModal()" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm font-semibold rounded-xl transition-colors cursor-pointer">
+                            Batal
+                        </button>
+                        <button type="submit" class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors cursor-pointer">
+                            Simpan Data Pasien
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: Pengaturan Sinkronisasi Cloud (Firebase Config) -->
+    <div id="sync-modal" class="fixed inset-0 z-40 hidden overflow-y-auto" role="dialog" aria-modal="true">
+        <div class="flex items-end sm:items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div onclick="closeSyncModal()" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div class="relative inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-xl w-full border border-slate-200">
+                <form id="sync-form" onsubmit="handleSaveSyncSettings(event)">
+                    <div class="bg-slate-900 px-5 py-4 flex items-center justify-between">
+                        <div class="flex items-center gap-2.5 text-white">
+                            <i data-lucide="cloud-cog" class="w-5 h-5 text-sky-400"></i>
+                            <h3 class="text-base sm:text-lg font-bold">Pengaturan Sinkronisasi Cloud (Firebase)</h3>
+                        </div>
+                        <button type="button" onclick="closeSyncModal()" class="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
+                    <div class="px-5 py-5 max-h-[75vh] overflow-y-auto space-y-4 text-sm">
+                        <div class="bg-sky-50 border border-sky-200 rounded-xl p-3.5 text-xs text-sky-900 leading-relaxed space-y-1.5">
+                            <p class="font-bold">Cara Menghubungkan HP Android, Tablet, dan Laptop Windows:</p>
+                            <ol class="list-decimal list-inside space-y-1">
+                                <li>Buat proyek gratis di Firebase Console dan aktifkan Firestore Database serta Anonymous Authentication.</li>
+                                <li>Salin objek konfigurasi <code class="bg-white px-1.5 py-0.5 rounded border border-sky-200">firebaseConfig</code> dalam format JSON dan tempelkan di kolom bawah.</li>
+                                <li>Masukkan <strong>Kode Ruang Sinkronisasi</strong> yang sama pada seluruh perangkat Anda.</li>
+                            </ol>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Kode Ruang Sinkronisasi *</label>
+                            <input type="text" id="sync-room-code" required placeholder="Contoh: BANGSAL-RS-01"
+                                class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono font-semibold focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                            <p class="text-[11px] text-slate-500 mt-1">Gunakan kode unik pribadi agar data pasien Anda terpisah dari pengguna lain.</p>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="block text-xs font-bold text-slate-700">Konfigurasi Firebase JSON (Opsional)</label>
+                                <button type="button" onclick="clearCustomFirebaseConfig()" class="text-[11px] text-red-600 hover:underline font-medium cursor-pointer">
+                                    Hapus Konfigurasi
+                                </button>
+                            </div>
+                            <textarea id="sync-firebase-json" rows="6" placeholder='{"apiKey":"AIzaSy...","authDomain":"proyek-anda.firebaseapp.com","projectId":"proyek-anda","storageBucket":"proyek-anda.appspot.com","messagingSenderId":"123456789","appId":"1:123456789:web:abcdef"}'
+                                class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-sky-500 focus:outline-none"></textarea>
+                            <p class="text-[11px] text-slate-500 mt-1">Jika dikosongkan, aplikasi tetap berjalan lancar dalam Mode Lokal menggunakan penyimpanan peramban perangkat Anda.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 px-5 py-3.5 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                        <button type="button" onclick="closeSyncModal()" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs sm:text-sm font-semibold rounded-xl transition-colors cursor-pointer">
+                            Tutup
+                        </button>
+                        <button type="submit" class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-sm transition-colors cursor-pointer">
+                            Simpan Pengaturan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: Dialog Konfirmasi Kustom -->
+    <div id="confirm-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen px-4 text-center">
+            <div onclick="closeConfirmModal()" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"></div>
+            <div class="relative inline-block bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:max-w-md w-full p-6 border border-slate-200">
+                <div class="flex items-start gap-3.5">
+                    <div class="p-2.5 rounded-full bg-red-100 text-red-600 shrink-0">
+                        <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 id="confirm-title" class="text-lg font-bold text-slate-900">Konfirmasi Tindakan</h3>
+                        <p id="confirm-message" class="text-sm text-slate-600 mt-1">Apakah Anda yakin ingin melanjutkan tindakan ini?</p>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end gap-2.5">
+                    <button type="button" onclick="closeConfirmModal()" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm font-semibold rounded-xl transition-colors cursor-pointer">
+                        Batal
+                    </button>
+                    <button type="button" id="confirm-yes-btn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors cursor-pointer">
+                        Ya, Lanjutkan
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Elemen Bantuan Penyalinan Clipboard -->
+    <textarea id="clipboard-helper" class="fixed -top-96 left-0 opacity-0 pointer-events-none" aria-hidden="true"></textarea>
+
+    <!-- Logika Aplikasi & Integrasi Firebase Firestore -->
+    <script type="module">
+        import { initializeApp, getApps, deleteApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import {
+            getFirestore,
+            doc,
+            setDoc,
+            deleteDoc,
+            onSnapshot,
+            collection,
+            enableIndexedDbPersistence
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ==========================================
+        // 1. KONSTANTA & FUNGSI WAKTU / LAMA RAWAT
+        // ==========================================
+        const ROOM_STORAGE_KEY = 'wpt_sync_room_v3';
+        const CUSTOM_FB_KEY = 'wpt_custom_firebase_config_v3';
+        const getCacheKey = (room) => `wpt_local_patients_v3_${encodeURIComponent(room)}`;
+
+        function getCurrentDateTimeLocalString(daysOffset = 0, hour = 8, minute = 0) {
+            const dt = new Date();
+            dt.setDate(dt.getDate() + daysOffset);
+            if (daysOffset !== 0) {
+                dt.setHours(hour, minute, 0, 0);
+            }
+            const y = dt.getFullYear();
+            const m = String(dt.getMonth() + 1).padStart(2, '0');
+            const d = String(dt.getDate()).padStart(2, '0');
+            const hh = String(dt.getHours()).padStart(2, '0');
+            const mm = String(dt.getMinutes()).padStart(2, '0');
+            return `${y}-${m}-${d}T${hh}:${mm}`;
+        }
+
+        // Menghitung selisih hari perawatan berdasarkan tanggal masuk RS vs tanggal hari ini
+        function calculateLengthOfStay(admissionDateTimeStr) {
+            if (!admissionDateTimeStr) return 1;
+            const datePart = String(admissionDateTimeStr).split('T')[0];
+            const parts = datePart.split('-');
+            if (parts.length !== 3) return 1;
+
+            const startDay = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            if (Number.isNaN(startDay.getTime())) return 1;
+            const diffMs = today.getTime() - startDay.getTime();
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            return Math.max(1, diffDays + 1);
+        }
+
+        function formatAdmissionDisplay(admissionDateTimeStr) {
+            if (!admissionDateTimeStr) return '-';
+            const [datePart, timePart] = String(admissionDateTimeStr).split('T');
+            const parts = (datePart || '').split('-');
+            if (parts.length !== 3) return admissionDateTimeStr;
+
+            const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            if (Number.isNaN(dt.getTime())) return admissionDateTimeStr;
+
+            const dateFormatted = dt.toLocaleDateString('id-ID', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+            });
+            return timePart ? `${dateFormatted}, pukul ${timePart} WIB` : dateFormatted;
+        }
+
+        // Jam Digital & Tanggal Live Update Setiap Detik
+        function updateLiveClock() {
+            const clockEl = document.getElementById('live-clock-display');
+            if (!clockEl) return;
+
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('id-ID', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+
+            clockEl.textContent = `${dateStr} | ${hours}:${minutes}:${seconds} WIB`;
+        }
+
+        // 2 Data Pasien Simulasi Realistis
+        function buildSamplePatients() {
+            return [
+                {
+                    id: 'pt-simulasi-01',
+                    sortOrder: 2000,
+                    ward: 'Bangsal Penyakit Dalam',
+                    bed: 'Bed 04',
+                    medicalRecordNumber: '12-34-56',
+                    initials: 'Tn. A.S.',
+                    age: 58,
+                    gender: 'Laki-laki',
+                    religion: 'Islam',
+                    insurance: 'BPJS Kesehatan Non-PBI',
+                    admissionDateTime: getCurrentDateTimeLocalString(-2, 14, 20), // Hari ke-3
+                    admissionRoute: 'IGD',
+                    dpjp: 'dr. Hendra Wijaya, Sp.PD',
+                    status: 'Observasi Ketat',
+                    updatedAt: '08:15 WIB',
+                    soap: {
+                        s: 'Sesak napas berkurang dibandingkan saat awal masuk melalui IGD, batuk berdahak kekuningan masih ada, demam mulai turun.',
+                        immunization: '',
+                        o: 'Kesadaran Compos Mentis, TD 126/78 mmHg, Nadi 92 x/menit, RR 22 x/menit, SpO2 97% dengan kanul nasal 3 lpm, Suhu 37.6 C. Auskultasi paru ditemukan ronki basah kasar pada basal paru kanan. Leukosit 15.400/uL.',
+                        a: 'Pneumonia Komunitas Derajat Sedang dengan Diabetes Melitus Tipe 2 Terkontrol',
+                        p: 'IVFD NaCl 0.9% 20 tetes/menit, Oksigen kanul nasal 3 lpm, Injeksi Ceftriaxone 1x2 gram IV, Azithromycin 1x500 mg PO, Nebulizer Combivent per 8 jam, Paracetamol 3x500 mg PO bila demam.'
+                    },
+                    followUps: [
+                        { id: 'fu-sim-01', text: 'Evaluasi ulang foto toraks dan hitung leukosit pada perawatan hari ke-4', done: false },
+                        { id: 'fu-sim-02', text: 'Pantau gula darah sewaktu sebelum makan pagi dan sore', done: true }
+                    ]
+                },
+                {
+                    id: 'pt-simulasi-02',
+                    sortOrder: 1000,
+                    ward: 'Bangsal Anak',
+                    bed: 'Bed 02',
+                    medicalRecordNumber: '12-78-90',
+                    initials: 'An. K.P.',
+                    age: 7,
+                    gender: 'Perempuan',
+                    religion: 'Kristen Protestan',
+                    insurance: 'Asuransi Swasta',
+                    admissionDateTime: getCurrentDateTimeLocalString(-1, 10, 30), // Hari ke-2
+                    admissionRoute: 'Poliklinik',
+                    dpjp: 'dr. Rina Kusuma, Sp.A',
+                    status: 'Stabil',
+                    updatedAt: '08:30 WIB',
+                    soap: {
+                        s: 'Demam hari ke-4 mulai mereda, anak sudah mau minum air putih dan makan bubur setengah porsi, nyeri perut minimal, tidak terdapat mimisan maupun gusi berdarah.',
+                        immunization: 'Imunisasi dasar lengkap sesuai usia (HB0, BCG, DPT-HB-Hib 1-3, Polio 1-4, Campak Rubella) serta imunisasi lanjutan.',
+                        o: 'Kesadaran Compos Mentis, tampak aktif, Nadi 102 x/menit kuat angkat, RR 22 x/menit, SpO2 99% udara ruangan, Suhu 37.0 C, akral hangat, CRT kurang dari 2 detik. Trombosit pagi ini 118.000/uL, Hematokrit 38%.',
+                        a: 'Observasi Demam Hari ke-4 e.c. Infeksi Virus (Demam Dengue Tanpa Tanda Bahaya)',
+                        p: 'IVFD Ringer Laktat rumatan sesuai berat badan, Paracetamol sirup 3x250 mg PO bila suhu di atas 37.5 C, anjurkan asupan cairan oral adekuat.'
+                    },
+                    followUps: [
+                        { id: 'fu-sim-03', text: 'Cek ulang darah rutin (Hb, Hematokrit, Trombosit) besok pagi pukul 06.00 WIB', done: false },
+                        { id: 'fu-sim-04', text: 'Edukasi orang tua pasien mengenai pemantauan tanda bahaya fase kritis', done: true }
+                    ]
+                }
+            ];
+        }
+
+        // ==========================================
+        // 2. STATE APLIKASI
+        // ==========================================
+        const appId = typeof __app_id !== 'undefined' && __app_id ? __app_id : 'ward-patient-tracker-id';
+        let currentRoom = localStorage.getItem(ROOM_STORAGE_KEY) || 'BANGSAL-UTAMA';
+        let patients = [];
+        let modalTempFollowUps = [];
+        let currentFilterStatus = 'ALL';
+        let currentFilterRoute = 'ALL';
+        let currentSearchQuery = '';
+        let pendingConfirmAction = null;
+
+        let firebaseAppInstance = null;
+        let db = null;
+        let auth = null;
+        let currentUser = null;
+        let unsubscribePatients = null;
+        let isCloudConnected = false;
+
+        // ==========================================
+        // 3. PENYIMPANAN LOKAL & SINKRONISASI FIREBASE
+        // ==========================================
+        function resolveFirebaseConfig() {
+            const customRaw = localStorage.getItem(CUSTOM_FB_KEY);
+            if (customRaw) {
+                try {
+                    const parsed = JSON.parse(customRaw);
+                    if (parsed && parsed.apiKey && parsed.projectId) return parsed;
+                } catch (err) {
+                    console.warn('Format JSON Firebase kustom tidak valid:', err);
+                }
+            }
+
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                try {
+                    const envCfg = typeof __firebase_config === 'string'
+                        ? JSON.parse(__firebase_config)
+                        : __firebase_config;
+                    if (envCfg && envCfg.apiKey && envCfg.projectId) return envCfg;
+                } catch (err) {
+                    console.warn('Gagal membaca konfigurasi lingkungan:', err);
+                }
+            }
+            return null;
+        }
+
+        function setConnectionStatusBadge(isCloud, labelText) {
+            const badge = document.getElementById('sync-status-badge');
+            const dot = document.getElementById('sync-status-dot');
+            const text = document.getElementById('sync-status-text');
+
+            text.textContent = labelText;
+            if (isCloud) {
+                badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30';
+                dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+            } else {
+                badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-400/30';
+                dot.className = 'w-2 h-2 rounded-full bg-amber-400';
+            }
+        }
+
+        function loadFromLocalCache() {
+            try {
+                const raw = localStorage.getItem(getCacheKey(currentRoom));
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) {
+                        patients = parsed;
+                        return true;
+                    }
+                }
+            } catch (e) {
+                console.error('Gagal membaca cache lokal:', e);
+            }
+            return false;
+        }
+
+        function saveToLocalCache() {
+            try {
+                localStorage.setItem(getCacheKey(currentRoom), JSON.stringify(patients));
+            } catch (e) {
+                console.error('Gagal menyimpan cache lokal:', e);
+            }
+        }
+
+        function sanitizeRoomId(room) {
+            return String(room || 'BANGSAL-UTAMA')
+                .trim()
+                .replace(/[^a-zA-Z0-9_-]/g, '_')
+                .slice(0, 60) || 'BANGSAL-UTAMA';
+        }
+
+        function getPatientsCollectionRef() {
+            if (!db || !currentUser) return null;
+            return collection(db, 'artifacts', appId, 'public', 'data', `ward_room_${sanitizeRoomId(currentRoom)}`);
+        }
+
+        async function initStorageAndCloud() {
+            document.getElementById('header-room-label').textContent = currentRoom;
+            document.getElementById('active-room-display').textContent = currentRoom;
+
+            const hasLocalData = loadFromLocalCache();
+            if (!hasLocalData) {
+                patients = buildSamplePatients();
+                saveToLocalCache();
+            }
+            renderAll();
+
+            if (typeof unsubscribePatients === 'function') {
+                unsubscribePatients();
+                unsubscribePatients = null;
+            }
+
+            const config = resolveFirebaseConfig();
+            if (!config) {
+                isCloudConnected = false;
+                setConnectionStatusBadge(false, 'Mode Lokal');
+                return;
+            }
+
+            try {
+                if (firebaseAppInstance) {
+                    await deleteApp(firebaseAppInstance);
+                    firebaseAppInstance = null;
+                }
+                firebaseAppInstance = initializeApp(config, 'ward-sync-' + Date.now());
+                auth = getAuth(firebaseAppInstance);
+                db = getFirestore(firebaseAppInstance);
+
+                try {
+                    await enableIndexedDbPersistence(db);
+                } catch (persistErr) {
+                    console.info('Persistensi offline Firestore:', persistErr?.code || persistErr);
+                }
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                currentUser = auth.currentUser;
+
+                const colRef = getPatientsCollectionRef();
+                if (!colRef || !currentUser) {
+                    isCloudConnected = false;
+                    setConnectionStatusBadge(false, 'Mode Lokal');
+                    return;
+                }
+
+                unsubscribePatients = onSnapshot(
+                    colRef,
+                    (snapshot) => {
+                        const cloudItems = [];
+                        snapshot.forEach((docSnap) => {
+                            cloudItems.push({ id: docSnap.id, ...docSnap.data() });
+                        });
+                        cloudItems.sort((a, b) => (b.sortOrder || 0) - (a.sortOrder || 0));
+
+                        if (cloudItems.length > 0) {
+                            patients = cloudItems;
+                            saveToLocalCache();
+                        } else if (patients.length > 0) {
+                            // Unggah data awal ke cloud jika koleksi cloud masih kosong
+                            patients.forEach(item => {
+                                setDoc(doc(colRef, item.id), item).catch(() => {});
+                            });
+                        }
+
+                        isCloudConnected = true;
+                        setConnectionStatusBadge(true, 'Tersinkron Cloud');
+                        renderAll();
+                    },
+                    (error) => {
+                        console.error('Kesalahan sinkronisasi Firestore:', error);
+                        isCloudConnected = false;
+                        setConnectionStatusBadge(false, 'Mode Lokal');
+                    }
+                );
+            } catch (err) {
+                console.error('Gagal menghubungkan Firebase:', err);
+                isCloudConnected = false;
+                setConnectionStatusBadge(false, 'Mode Lokal');
+            }
+        }
+
+        async function persistPatientRecord(patient) {
+            saveToLocalCache();
+            if (!isCloudConnected || !currentUser) return;
+            try {
+                const colRef = getPatientsCollectionRef();
+                if (colRef) {
+                    await setDoc(doc(colRef, patient.id), patient);
+                }
+            } catch (err) {
+                console.error('Gagal menyinkronkan perubahan ke cloud:', err);
+            }
+        }
+
+        async function removePatientRecord(patientId) {
+            saveToLocalCache();
+            if (!isCloudConnected || !currentUser) return;
+            try {
+                const colRef = getPatientsCollectionRef();
+                if (colRef) {
+                    await deleteDoc(doc(colRef, patientId));
+                }
+            } catch (err) {
+                console.error('Gagal menghapus data dari cloud:', err);
+            }
+        }
+
+        // ==========================================
+        // 4. RENDERING KARTU PASIEN & STATISTIK
+        // ==========================================
+        function isPediatricPatient(age) {
+            const num = Number(age);
+            return !Number.isNaN(num) && num <= 17;
+        }
+
+        function getStatusStyle(status) {
+            switch (status) {
+                case 'Observasi Ketat':
+                    return {
+                        badge: 'bg-red-100 text-red-800 border-red-200',
+                        dot: 'bg-red-600 animate-pulse',
+                        borderTop: 'border-t-4 border-t-red-500'
+                    };
+                case 'Rencana Pulang':
+                    return {
+                        badge: 'bg-sky-100 text-sky-800 border-sky-200',
+                        dot: 'bg-sky-600',
+                        borderTop: 'border-t-4 border-t-sky-500'
+                    };
+                case 'Stabil':
+                default:
+                    return {
+                        badge: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                        dot: 'bg-emerald-600',
+                        borderTop: 'border-t-4 border-t-emerald-500'
+                    };
+            }
+        }
+
+        function renderAll() {
+            updateStats();
+            renderPatientGrid();
+            lucide.createIcons();
+        }
+
+        function updateStats() {
+            document.getElementById('stat-total').textContent = patients.length;
+            document.getElementById('stat-obs').textContent = patients.filter(p => p.status === 'Observasi Ketat').length;
+            document.getElementById('stat-stabil').textContent = patients.filter(p => p.status === 'Stabil').length;
+            document.getElementById('stat-pulang').textContent = patients.filter(p => p.status === 'Rencana Pulang').length;
+        }
+
+        function renderPatientGrid() {
+            const grid = document.getElementById('patient-grid');
+            const emptyState = document.getElementById('empty-state');
+
+            const filtered = patients.filter(p => {
+                const matchStatus = currentFilterStatus === 'ALL' || p.status === currentFilterStatus;
+                const matchRoute = currentFilterRoute === 'ALL' || p.admissionRoute === currentFilterRoute;
+                const q = currentSearchQuery.toLowerCase().trim();
+                const matchQuery = !q ||
+                    (p.medicalRecordNumber || '').toLowerCase().includes(q) ||
+                    (p.initials || '').toLowerCase().includes(q) ||
+                    (p.ward || '').toLowerCase().includes(q) ||
+                    (p.bed || '').toLowerCase().includes(q) ||
+                    (p.dpjp || '').toLowerCase().includes(q) ||
+                    (p.religion || '').toLowerCase().includes(q) ||
+                    (p.insurance || '').toLowerCase().includes(q) ||
+                    (p.soap?.a || '').toLowerCase().includes(q) ||
+                    (p.soap?.s || '').toLowerCase().includes(q);
+                return matchStatus && matchRoute && matchQuery;
+            });
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            grid.innerHTML = filtered.map(pt => {
+                const st = getStatusStyle(pt.status);
+                const losDay = calculateLengthOfStay(pt.admissionDateTime);
+                const followUps = Array.isArray(pt.followUps) ? pt.followUps : [];
+                const pendingCount = followUps.filter(f => !f.done).length;
+                const hasPediatricImm = isPediatricPatient(pt.age) && (pt.soap?.immunization || '').trim() !== '';
+                const routeBadgeClass = pt.admissionRoute === 'IGD'
+                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                    : 'bg-indigo-50 text-indigo-700 border-indigo-200';
+
+                return `
+                <article class="bg-white rounded-2xl border border-slate-200 ${st.borderTop} shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between overflow-hidden">
+                    <div>
+                        <!-- Header Kartu: Lokasi, Lama Rawat, Identitas, Admisi -->
+                        <div class="p-4 sm:p-5 bg-slate-50/80 border-b border-slate-200">
+                            <div class="flex flex-wrap items-start justify-between gap-2">
+                                <div class="space-y-2">
+                                    <!-- Baris 1: Lokasi Bed & Lama Rawat -->
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 text-white text-xs font-bold">
+                                            <i data-lucide="bed-double" class="w-3.5 h-3.5 text-sky-400"></i>
+                                            ${escapeHTML(pt.ward)} (${escapeHTML(pt.bed)})
+                                        </span>
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 text-xs font-extrabold">
+                                            <i data-lucide="calendar-days" class="w-3.5 h-3.5 text-amber-700"></i>
+                                            Hari ke-${losDay}
+                                        </span>
+                                    </div>
+
+                                    <!-- Baris 2: Inisial, No. RM, Usia/JK, Agama -->
+                                    <div class="flex flex-wrap items-center gap-1.5 text-xs">
+                                        <span class="text-base font-extrabold text-slate-900 mr-1">${escapeHTML(pt.initials)}</span>
+                                        <span class="font-mono font-bold bg-white text-slate-800 px-2 py-0.5 rounded-md border border-slate-300">
+                                            No. RM: ${escapeHTML(pt.medicalRecordNumber || '-')}
+                                        </span>
+                                        <span class="bg-white text-slate-700 font-medium px-2 py-0.5 rounded-md border border-slate-200">
+                                            ${escapeHTML(pt.age)} tahun / ${escapeHTML(pt.gender)}
+                                        </span>
+                                        <span class="bg-white text-slate-700 font-medium px-2 py-0.5 rounded-md border border-slate-200">
+                                            Agama: ${escapeHTML(pt.religion || '-')}
+                                        </span>
+                                    </div>
+
+                                    <!-- Baris 3: Penjaminan & Jalur Masuk -->
+                                    <div class="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
+                                        <span class="bg-teal-50 text-teal-800 border border-teal-200 px-2.5 py-0.5 rounded-md">
+                                            Penjamin: ${escapeHTML(pt.insurance || '-')}
+                                        </span>
+                                        <span class="border px-2.5 py-0.5 rounded-md ${routeBadgeClass}">
+                                            Masuk via ${escapeHTML(pt.admissionRoute || '-')} (${formatAdmissionDisplay(pt.admissionDateTime)})
+                                        </span>
+                                    </div>
+
+                                    <!-- Baris 4: DPJP Utama -->
+                                    <p class="text-xs text-slate-600 flex items-center gap-1.5 font-medium pt-0.5">
+                                        <i data-lucide="user-check" class="w-3.5 h-3.5 text-sky-600 shrink-0"></i>
+                                        <span>DPJP Utama: <strong class="text-slate-800">${escapeHTML(pt.dpjp)}</strong></span>
+                                    </p>
+                                </div>
+
+                                <!-- Status Klinis -->
+                                <div class="flex flex-col items-end gap-1 shrink-0">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${st.badge}">
+                                        <span class="w-2 h-2 rounded-full ${st.dot}"></span>
+                                        ${escapeHTML(pt.status)}
+                                    </span>
+                                    <span class="text-[11px] text-slate-400">Diperbarui ${escapeHTML(pt.updatedAt || '-')}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Badan Kartu: Catatan SOAP -->
+                        <div class="p-4 sm:p-5 space-y-2.5">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Perkembangan Klinis (SOAP)</span>
+                                <button type="button" onclick="openPatientModal('${pt.id}')" class="inline-flex items-center gap-1 text-xs font-semibold text-sky-700 hover:text-sky-800 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer">
+                                    <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                                    <span>Edit Pasien dan SOAP</span>
+                                </button>
+                            </div>
+
+                            <!-- Subjective -->
+                            <div class="flex items-start gap-2.5 text-xs sm:text-sm">
+                                <span class="soap-tag rounded-md bg-sky-100 text-sky-800 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">S</span>
+                                <div class="text-slate-700 leading-relaxed flex-1">
+                                    <p>${escapeHTML(pt.soap?.s || '')}</p>
+                                    ${hasPediatricImm ? `
+                                        <div class="mt-1.5 text-xs bg-sky-50 text-sky-900 border border-sky-200 rounded-lg px-2.5 py-1.5">
+                                            <strong>Riwayat Imunisasi:</strong> ${escapeHTML(pt.soap.immunization)}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+
+                            <!-- Objective -->
+                            <div class="flex items-start gap-2.5 text-xs sm:text-sm">
+                                <span class="soap-tag rounded-md bg-indigo-100 text-indigo-800 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">O</span>
+                                <p class="text-slate-700 leading-relaxed font-medium flex-1">${escapeHTML(pt.soap?.o || '')}</p>
+                            </div>
+
+                            <!-- Assessment -->
+                            <div class="flex items-start gap-2.5 text-xs sm:text-sm">
+                                <span class="soap-tag rounded-md bg-amber-100 text-amber-800 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">A</span>
+                                <p class="text-slate-900 font-bold leading-relaxed flex-1">${escapeHTML(pt.soap?.a || '')}</p>
+                            </div>
+
+                            <!-- Plan -->
+                            <div class="flex items-start gap-2.5 text-xs sm:text-sm">
+                                <span class="soap-tag rounded-md bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">P</span>
+                                <p class="text-slate-700 leading-relaxed flex-1">${escapeHTML(pt.soap?.p || '')}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer Kartu: Pelacak Advice & Follow-up DPJP -->
+                    <div class="bg-slate-50 border-t border-slate-200 p-4 sm:p-5">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <div class="flex items-center gap-1.5">
+                                <i data-lucide="list-checks" class="w-4 h-4 text-sky-600"></i>
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700">Advice dan Follow-up DPJP</h4>
+                            </div>
+                            ${pendingCount > 0
+                                ? `<span class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800">${pendingCount} belum selesai</span>`
+                                : `<span class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Semua selesai</span>`
+                            }
+                        </div>
+
+                        <ul class="space-y-1.5 mb-3">
+                            ${followUps.length === 0
+                                ? `<li class="text-xs text-slate-400 italic py-1">Belum ada instruksi follow-up DPJP yang dicatat.</li>`
+                                : followUps.map(item => `
+                                    <li class="flex items-start justify-between gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 hover:border-sky-300 transition-colors">
+                                        <label class="flex items-start gap-2.5 cursor-pointer flex-1 select-none">
+                                            <input type="checkbox" ${item.done ? 'checked' : ''} onchange="toggleFollowUp('${pt.id}', '${item.id}')"
+                                                class="mt-0.5 w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer">
+                                            <span class="text-xs sm:text-sm leading-snug ${item.done ? 'line-through text-slate-400' : 'text-slate-800 font-medium'}">
+                                                ${escapeHTML(item.text)}
+                                            </span>
+                                        </label>
+                                        <button type="button" onclick="deleteFollowUp('${pt.id}', '${item.id}')" title="Hapus instruksi" class="text-slate-300 hover:text-red-500 p-0.5 rounded transition-colors cursor-pointer">
+                                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                        </button>
+                                    </li>
+                                `).join('')
+                            }
+                        </ul>
+
+                        <!-- Input Tambah Advice Langsung dari Kartu -->
+                        <form onsubmit="addFollowUp(event, '${pt.id}')" class="flex items-center gap-2">
+                            <input type="text" id="fu-input-${pt.id}" placeholder="Tambah advice atau follow-up DPJP baru..."
+                                class="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+                            <button type="submit" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer shrink-0">
+                                Tambah
+                            </button>
+                        </form>
+
+                        <!-- Tombol Hapus Pasien -->
+                        <div class="mt-3.5 pt-3 border-t border-slate-200/80 flex items-center justify-between">
+                            <span class="text-[11px] text-slate-400">Pasien sudah pulang atau pindah bangsal?</span>
+                            <button type="button" onclick="openConfirmModal('delete', '${pt.id}')" class="inline-flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                <span>Hapus Pasien</span>
+                            </button>
+                        </div>
+                    </div>
+                </article>
+                `;
+            }).join('');
+        }
+
+        // ==========================================
+        // 5. OPERASI FORM MODAL PASIEN & CHECKLIST
+        // ==========================================
+        function togglePediatricImmunizationField() {
+            const ageVal = document.getElementById('form-age').value;
+            const box = document.getElementById('pediatric-immunization-box');
+            if (ageVal !== '' && isPediatricPatient(ageVal)) {
+                box.classList.remove('hidden');
+            } else {
+                box.classList.add('hidden');
+            }
+            lucide.createIcons();
+        }
+
+        function updateModalLosPreview() {
+            const dtVal = document.getElementById('form-admission-datetime').value;
+            const los = calculateLengthOfStay(dtVal);
+            document.getElementById('modal-los-preview').textContent = `Hari ke-${los}`;
+        }
+
+        function renderModalFollowUpList() {
+            const container = document.getElementById('modal-followup-list');
+            if (!container) return;
+
+            if (modalTempFollowUps.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 italic">Belum ada advice DPJP ditambahkan pada formulir ini.</p>`;
+                return;
+            }
+
+            container.innerHTML = modalTempFollowUps.map((item, idx) => `
+                <div class="flex items-center justify-between gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                    <label class="flex items-center gap-2 text-xs sm:text-sm cursor-pointer flex-1">
+                        <input type="checkbox" ${item.done ? 'checked' : ''} onchange="toggleModalFollowUpItem(${idx})"
+                            class="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                        <span class="${item.done ? 'line-through text-slate-400' : 'text-slate-800'}">${escapeHTML(item.text)}</span>
+                    </label>
+                    <button type="button" onclick="removeModalFollowUpItem(${idx})" class="text-slate-400 hover:text-red-600 p-1 cursor-pointer">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function addModalFollowUpItem() {
+            const input = document.getElementById('modal-new-followup-input');
+            const text = input.value.trim();
+            if (!text) return;
+            modalTempFollowUps.push({
+                id: 'fu-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+                text,
+                done: false
+            });
+            input.value = '';
+            renderModalFollowUpList();
+        }
+
+        function toggleModalFollowUpItem(index) {
+            if (modalTempFollowUps[index]) {
+                modalTempFollowUps[index].done = !modalTempFollowUps[index].done;
+                renderModalFollowUpList();
+            }
+        }
+
+        function removeModalFollowUpItem(index) {
+            modalTempFollowUps.splice(index, 1);
+            renderModalFollowUpList();
+        }
+
+        function openPatientModal(patientId = null) {
+            const modal = document.getElementById('patient-modal');
+            const form = document.getElementById('patient-form');
+            const title = document.getElementById('modal-title');
+            form.reset();
+
+            if (patientId) {
+                const pt = patients.find(p => p.id === patientId);
+                if (!pt) return;
+                title.textContent = `Edit Data Pasien: ${pt.initials} (${pt.ward} - ${pt.bed})`;
+                document.getElementById('form-id').value = pt.id;
+                document.getElementById('form-ward').value = pt.ward || '';
+                document.getElementById('form-bed').value = pt.bed || '';
+                document.getElementById('form-rm').value = pt.medicalRecordNumber || '';
+                document.getElementById('form-initials').value = pt.initials || '';
+                document.getElementById('form-age').value = pt.age ?? '';
+                document.getElementById('form-gender').value = pt.gender || 'Laki-laki';
+                document.getElementById('form-religion').value = pt.religion || 'Islam';
+                document.getElementById('form-insurance').value = pt.insurance || '';
+                document.getElementById('form-dpjp').value = pt.dpjp || '';
+                document.getElementById('form-admission-datetime').value = pt.admissionDateTime || getCurrentDateTimeLocalString();
+                document.getElementById('form-admission-route').value = pt.admissionRoute || 'IGD';
+                document.getElementById('form-status').value = pt.status || 'Stabil';
+                document.getElementById('form-s').value = pt.soap?.s || '';
+                document.getElementById('form-immunization').value = pt.soap?.immunization || '';
+                document.getElementById('form-o').value = pt.soap?.o || '';
+                document.getElementById('form-a').value = pt.soap?.a || '';
+                document.getElementById('form-p').value = pt.soap?.p || '';
+                modalTempFollowUps = JSON.parse(JSON.stringify(pt.followUps || []));
+            } else {
+                title.textContent = 'Tambah Pasien Bangsal Baru';
+                document.getElementById('form-id').value = '';
+                document.getElementById('form-admission-datetime').value = getCurrentDateTimeLocalString();
+                modalTempFollowUps = [];
+            }
+
+            togglePediatricImmunizationField();
+            updateModalLosPreview();
+            renderModalFollowUpList();
+            modal.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closePatientModal() {
+            document.getElementById('patient-modal').classList.add('hidden');
+        }
+
+        async function handleSavePatient(e) {
+            e.preventDefault();
+            const existingId = document.getElementById('form-id').value;
+            const ageNum = Number(document.getElementById('form-age').value);
+            const nowStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+
+            const pendingInputVal = document.getElementById('modal-new-followup-input').value.trim();
+            if (pendingInputVal) {
+                modalTempFollowUps.push({
+                    id: 'fu-' + Date.now(),
+                    text: pendingInputVal,
+                    done: false
+                });
+            }
+
+            const payload = {
+                ward: document.getElementById('form-ward').value.trim(),
+                bed: document.getElementById('form-bed').value.trim(),
+                medicalRecordNumber: document.getElementById('form-rm').value.trim(),
+                initials: document.getElementById('form-initials').value.trim(),
+                age: Number.isNaN(ageNum) ? document.getElementById('form-age').value.trim() : ageNum,
+                gender: document.getElementById('form-gender').value,
+                religion: document.getElementById('form-religion').value,
+                insurance: document.getElementById('form-insurance').value.trim(),
+                dpjp: document.getElementById('form-dpjp').value.trim(),
+                admissionDateTime: document.getElementById('form-admission-datetime').value,
+                admissionRoute: document.getElementById('form-admission-route').value,
+                status: document.getElementById('form-status').value,
+                updatedAt: nowStr,
+                soap: {
+                    s: document.getElementById('form-s').value.trim(),
+                    immunization: isPediatricPatient(ageNum)
+                        ? document.getElementById('form-immunization').value.trim()
+                        : '',
+                    o: document.getElementById('form-o').value.trim(),
+                    a: document.getElementById('form-a').value.trim(),
+                    p: document.getElementById('form-p').value.trim()
+                },
+                followUps: modalTempFollowUps
+            };
+
+            let savedRecord;
+            if (existingId) {
+                const idx = patients.findIndex(p => p.id === existingId);
+                if (idx !== -1) {
+                    savedRecord = { ...patients[idx], ...payload };
+                    patients[idx] = savedRecord;
+                }
+            }
+
+            if (!savedRecord) {
+                savedRecord = {
+                    id: 'pt-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+                    sortOrder: Date.now(),
+                    ...payload
+                };
+                patients.unshift(savedRecord);
+            }
+
+            closePatientModal();
+            renderAll();
+            await persistPatientRecord(savedRecord);
+            showToast(`Data pasien ${savedRecord.initials} berhasil disimpan`, 'success');
+        }
+
+        async function toggleFollowUp(patientId, followUpId) {
+            const pt = patients.find(p => p.id === patientId);
+            if (!pt) return;
+            const item = (pt.followUps || []).find(f => f.id === followUpId);
+            if (!item) return;
+            item.done = !item.done;
+            renderAll();
+            await persistPatientRecord(pt);
+        }
+
+        async function addFollowUp(e, patientId) {
+            e.preventDefault();
+            const input = document.getElementById(`fu-input-${patientId}`);
+            const text = input.value.trim();
+            if (!text) return;
+
+            const pt = patients.find(p => p.id === patientId);
+            if (!pt) return;
+
+            if (!Array.isArray(pt.followUps)) pt.followUps = [];
+            pt.followUps.push({
+                id: 'fu-' + Date.now(),
+                text,
+                done: false
+            });
+            pt.updatedAt = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+            input.value = '';
+
+            renderAll();
+            await persistPatientRecord(pt);
+            showToast('Advice DPJP berhasil ditambahkan', 'success');
+        }
+
+        async function deleteFollowUp(patientId, followUpId) {
+            const pt = patients.find(p => p.id === patientId);
+            if (!pt) return;
+            pt.followUps = (pt.followUps || []).filter(f => f.id !== followUpId);
+            renderAll();
+            await persistPatientRecord(pt);
+        }
+
+        // ==========================================
+        // 6. MODAL SINKRONISASI CLOUD & KONFIRMASI
+        // ==========================================
+        function openSyncModal() {
+            document.getElementById('sync-room-code').value = currentRoom;
+            document.getElementById('sync-firebase-json').value = localStorage.getItem(CUSTOM_FB_KEY) || '';
+            document.getElementById('sync-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeSyncModal() {
+            document.getElementById('sync-modal').classList.add('hidden');
+        }
+
+        function clearCustomFirebaseConfig() {
+            localStorage.removeItem(CUSTOM_FB_KEY);
+            document.getElementById('sync-firebase-json').value = '';
+            showToast('Konfigurasi Firebase dihapus, kembali ke Mode Lokal', 'info');
+        }
+
+        async function handleSaveSyncSettings(e) {
+            e.preventDefault();
+            const roomInput = document.getElementById('sync-room-code').value.trim();
+            const jsonInput = document.getElementById('sync-firebase-json').value.trim();
+
+            if (jsonInput) {
+                try {
+                    const parsed = JSON.parse(jsonInput);
+                    if (!parsed.apiKey || !parsed.projectId) {
+                        showToast('Konfigurasi Firebase harus memuat apiKey dan projectId.', 'error');
+                        return;
+                    }
+                    localStorage.setItem(CUSTOM_FB_KEY, JSON.stringify(parsed, null, 2));
+                } catch (err) {
+                    showToast('Format JSON Firebase tidak valid.', 'error');
+                    return;
+                }
+            } else {
+                localStorage.removeItem(CUSTOM_FB_KEY);
+            }
+
+            currentRoom = roomInput || 'BANGSAL-UTAMA';
+            localStorage.setItem(ROOM_STORAGE_KEY, currentRoom);
+            closeSyncModal();
+            await initStorageAndCloud();
+            showToast(`Pengaturan ruang sinkronisasi disimpan: ${currentRoom}`, 'success');
+        }
+
+        function openConfirmModal(type, targetId = null) {
+            const modal = document.getElementById('confirm-modal');
+            const title = document.getElementById('confirm-title');
+            const msg = document.getElementById('confirm-message');
+            const yesBtn = document.getElementById('confirm-yes-btn');
+
+            if (type === 'delete') {
+                const pt = patients.find(p => p.id === targetId);
+                if (!pt) return;
+                title.textContent = 'Hapus Pasien dari Daftar?';
+                msg.textContent = `Data pasien ${pt.initials} (No. RM: ${pt.medicalRecordNumber || '-'}, ${pt.ward} - ${pt.bed}) akan dihapus dari daftar perawatan aktif.`;
+                yesBtn.textContent = 'Ya, Hapus Pasien';
+                pendingConfirmAction = async () => {
+                    patients = patients.filter(p => p.id !== targetId);
+                    renderAll();
+                    await removePatientRecord(targetId);
+                    showToast(`Pasien ${pt.initials} dihapus dari daftar`, 'info');
+                };
+            } else if (type === 'reset') {
+                title.textContent = 'Muat Ulang Data Simulasi?';
+                msg.textContent = 'Dua data pasien simulasi awal akan ditambahkan kembali ke daftar Anda.';
+                yesBtn.textContent = 'Ya, Muat Simulasi';
+                pendingConfirmAction = async () => {
+                    const samples = buildSamplePatients();
+                    for (const s of samples) {
+                        if (!patients.some(p => p.id === s.id)) {
+                            patients.unshift(s);
+                            await persistPatientRecord(s);
+                        }
+                    }
+                    saveToLocalCache();
+                    renderAll();
+                    showToast('Data pasien simulasi berhasil dimuat', 'info');
+                };
+            }
+
+            modal.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            pendingConfirmAction = null;
+        }
+
+        document.getElementById('confirm-yes-btn').addEventListener('click', async () => {
+            if (typeof pendingConfirmAction === 'function') {
+                await pendingConfirmAction();
+            }
+            closeConfirmModal();
+        });
+
+        // ==========================================
+        // 7. SALIN LAPORAN OPERAN WHATSAPP
+        // ==========================================
+        function copyHandoverReport() {
+            if (patients.length === 0) {
+                showToast('Tidak ada data pasien aktif untuk disalin', 'error');
+                return;
+            }
+
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('id-ID', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+            const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+            let report = `*LAPORAN OPERAN PASIEN BANGSAL*\n`;
+            report += `Waktu Laporan: ${dateStr}, pukul ${timeStr} WIB\n`;
+            report += `Total Pasien Aktif: ${patients.length} pasien\n`;
+            report += `====================================\n\n`;
+
+            patients.forEach((p, idx) => {
+                const losDay = calculateLengthOfStay(p.admissionDateTime);
+                report += `*${idx + 1}. ${p.ward} - ${p.bed} | ${p.initials}*\n`;
+                report += `No. RM: ${p.medicalRecordNumber || '-'}\n`;
+                report += `Identitas: ${p.age} tahun / ${p.gender} | Agama: ${p.religion || '-'}\n`;
+                report += `Penjaminan: ${p.insurance || '-'}\n`;
+                report += `Admisi: Masuk via ${p.admissionRoute || '-'} (${formatAdmissionDisplay(p.admissionDateTime)}) | *Hari ke-${losDay}*\n`;
+                report += `Status Klinis: *${p.status}* | DPJP: ${p.dpjp}\n`;
+                report += `• *S:* ${p.soap?.s || '-'}\n`;
+                if (isPediatricPatient(p.age) && p.soap?.immunization) {
+                    report += `  _Riwayat Imunisasi:_ ${p.soap.immunization}\n`;
+                }
+                report += `• *O:* ${p.soap?.o || '-'}\n`;
+                report += `• *A:* ${p.soap?.a || '-'}\n`;
+                report += `• *P:* ${p.soap?.p || '-'}\n`;
+
+                const fus = Array.isArray(p.followUps) ? p.followUps : [];
+                if (fus.length > 0) {
+                    report += `• *Advice dan Follow-up DPJP:*\n`;
+                    fus.forEach(f => {
+                        report += f.done
+                            ? `  [Selesai] ${f.text}\n`
+                            : `  [Belum] ${f.text}\n`;
+                    });
+                }
+                report += `\n------------------------------------\n\n`;
+            });
+
+            const helper = document.getElementById('clipboard-helper');
+            helper.value = report.trim();
+            helper.select();
+            helper.setSelectionRange(0, 999999);
+
+            try {
+                const copied = document.execCommand('copy');
+                if (copied) {
+                    showToast('Laporan operan berhasil disalin! Siap ditempel ke WhatsApp.', 'success');
+                } else {
+                    throw new Error('execCommand gagal');
+                }
+            } catch (err) {
+                console.error('Gagal menyalin laporan:', err);
+                showToast('Gagal menyalin otomatis ke clipboard.', 'error');
+            }
+        }
+
+        // ==========================================
+        // 8. EVENT LISTENER FILTER & UTILITAS
+        // ==========================================
+        function bindFilterEvents() {
+            document.getElementById('search-input').addEventListener('input', (e) => {
+                currentSearchQuery = e.target.value;
+                renderPatientGrid();
+                lucide.createIcons();
+            });
+
+            const statusBtns = document.querySelectorAll('.status-btn');
+            statusBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    statusBtns.forEach(b => {
+                        b.className = 'status-btn flex-1 py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer bg-white text-slate-600 border-slate-200 hover:bg-slate-50';
+                    });
+                    btn.className = 'status-btn flex-1 py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer bg-slate-800 text-white border-slate-800';
+                    currentFilterStatus = btn.getAttribute('data-status');
+                    renderPatientGrid();
+                    lucide.createIcons();
+                });
+            });
+
+            const routeBtns = document.querySelectorAll('.route-btn');
+            routeBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    routeBtns.forEach(b => {
+                        b.className = 'route-btn flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer text-slate-600 hover:text-slate-900';
+                    });
+                    btn.className = 'route-btn flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-slate-800 text-white shadow-xs';
+                    currentFilterRoute = btn.getAttribute('data-route');
+                    renderPatientGrid();
+                    lucide.createIcons();
+                });
+            });
+        }
+
+        function escapeHTML(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgClass = type === 'error'
+                ? 'bg-red-700 text-white'
+                : (type === 'info' ? 'bg-slate-800 text-white' : 'bg-emerald-700 text-white');
+            const iconName = type === 'error' ? 'alert-circle' : (type === 'info' ? 'info' : 'check-circle');
+
+            toast.className = `${bgClass} px-4 py-3 rounded-xl shadow-lg flex items-center gap-2.5 text-xs sm:text-sm font-medium transform transition-all duration-300 translate-y-2 opacity-0 pointer-events-auto max-w-sm`;
+            toast.innerHTML = `<i data-lucide="${iconName}" class="w-4 h-4 shrink-0"></i><span>${escapeHTML(message)}</span>`;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3200);
+        }
+
+        // Ekspos fungsi ke global window agar dapat dipanggil dari atribut HTML
+        window.openPatientModal = openPatientModal;
+        window.closePatientModal = closePatientModal;
+        window.handleSavePatient = handleSavePatient;
+        window.togglePediatricImmunizationField = togglePediatricImmunizationField;
+        window.updateModalLosPreview = updateModalLosPreview;
+        window.addModalFollowUpItem = addModalFollowUpItem;
+        window.toggleModalFollowUpItem = toggleModalFollowUpItem;
+        window.removeModalFollowUpItem = removeModalFollowUpItem;
+        window.toggleFollowUp = toggleFollowUp;
+        window.addFollowUp = addFollowUp;
+        window.deleteFollowUp = deleteFollowUp;
+        window.openSyncModal = openSyncModal;
+        window.closeSyncModal = closeSyncModal;
+        window.clearCustomFirebaseConfig = clearCustomFirebaseConfig;
+        window.handleSaveSyncSettings = handleSaveSyncSettings;
+        window.openConfirmModal = openConfirmModal;
+        window.closeConfirmModal = closeConfirmModal;
+        window.copyHandoverReport = copyHandoverReport;
+
+        // Inisialisasi saat halaman dimuat
+        window.addEventListener('DOMContentLoaded', () => {
+            updateLiveClock();
+            setInterval(updateLiveClock, 1000);
+            bindFilterEvents();
+            initStorageAndCloud();
+        });
+    </script>
+</body>
+</html>
